@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "env-cmd -f ./config/.env nodemon src/index.js",
-    "start":"node --max-old-space-size=4096 index.js"
+    "start":"node --max-old-space-size=8192 index.js"
   },
   "keywords": [],
   "author": "",
