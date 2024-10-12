@@ -9,7 +9,7 @@ import payment from "../../../services/payment.js";
 
 
 export const createOrder = asyncHandler(async (req, res, next) => {
-    const { items, address, phone, couponName,paymentMethod } = req.body;
+    const { items, address, phone, couponName, paymentMethod } = req.body;
 
     let bill = 0;
     const EditItemList = [];
@@ -22,7 +22,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
     // Create a map to easily lookup items by ID
     const itemMap = new Map(foundItems.map(item => [item._id.toString(), item]));
-    
+
 
     // Validate items and calculate the bill
     for (const item of items) {
@@ -118,7 +118,7 @@ export const createOrder = asyncHandler(async (req, res, next) => {
             }),
             discounts: req.body.couponId ? [{ coupon: req.body.couponId }] : []
         })
-        // Return success response with order details
+        // Return success res with order details
         return res.status(201).json({ message: 'Order placed successfully', order, session, url: session.url });
     }
     else {
@@ -128,6 +128,39 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
 
 });
+
+
+
+export const webHook = asyncHandler(async (req, res) => {
+    const stripe = new Stripe(process.env.STRIPE_KEY)
+    let event = req.body;
+    // Only verify the event if you have an endpoint secret defined.
+    // Otherwise use the basic event deserialized with JSON.parse
+    if (process.env.ENDPOINTSECRET) {
+        // Get the signature sent by Stripe
+        const signature = req.headers['stripe-signature'];
+        try {
+            event = stripe.webhooks.constructEvent(
+                req.body,
+                signature,
+                process.env.ENDPOINTSECRET
+            );
+        } catch (err) {
+            console.log(`⚠️  Webhook signature verification failed.`, err.message);
+            return res.sendStatus(400);
+        }
+    }
+
+    // Handle the event
+    if (event.type != 'checkout.session.completed') {
+        await orderModel.updateOne({_id:orderId},{status:'rejected'})
+        return res.status(400).json({message:"Rejected Order"})
+    }
+    await orderModel.updateOne({_id:orderId},{status:'received'})
+    return res.status(200).json({message:"Done"})
+
+});
+
 
 
 

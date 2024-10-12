@@ -14,7 +14,15 @@ import express from "express"
 
 export const appRouter = (app) => {
 
-    app.use(express.json())
+    
+    app.use((req,res,next)=>{
+        if(req.originalUrl == `${BaseURL}/order/webhook`){
+            next()
+        }
+        else{
+            app.use(express.json({}))(req,res,next)
+        }
+    })
     const BaseURL = process.env.BASE_URL
 
     app.use(`${BaseURL}/auth`, authRouter)
