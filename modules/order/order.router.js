@@ -6,7 +6,6 @@ import express from 'express';
 const router = Router()
 
 router.post('/',Auth,order.createOrder)
-router.post('/webhook',order.webHook)
 
 
 
