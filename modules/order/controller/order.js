@@ -26,10 +26,10 @@ export const createOrder = asyncHandler(async (req, res, next) => {
 
     // Validate items and calculate the bill
     for (const item of items) {
-        const checkItem = itemMap.get(item.itemId.toString());
+        const checkItem = itemMap.get(item.itemId._id);
 
         if (!checkItem) {
-            return next(new Error(`Item with ID ${item.itemId} not found`, { cause: 404 }));
+            return next(new Error(`Item with ID ${item.itemId.itemId._id} not found`, { cause: 404 }));
         }
 
         if (checkItem.stock < item.quantity) {
