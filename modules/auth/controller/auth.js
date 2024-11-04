@@ -34,36 +34,68 @@ export const confirmEmail = asyncHandler(
 
 // Sign-in method
 export const signin = asyncHandler(async (req, res, next) => {
-    const user = await userModel.findByCredentials(req.body.email, req.body.password);
+    try {
+        const user = await userModel.findByCredentials(req.body.email, req.body.password);
 
-    const accessToken = await user.generateAuthToken();
-    const refreshToken = await user.generateRefreshToken();
+        // Generate access and refresh tokens
+        const accessToken = await user.generateAuthToken();
+        const refreshToken = await user.generateRefreshToken();
 
-    req.session.user = { id: user._id, username: user.name, refreshToken };
+        // Store session details
+        req.session.user = { id: user._id, username: user.name };
 
-    await new Promise((resolve, reject) => {
-        req.session.save((err) => {
-            if (err) {
-                console.error('Session save error during signin:', err);
-                reject(err);
-            } else {
-                console.log('Session saved successfully during signin');
-                resolve();
-            }
+        // Save the session and handle any errors
+        await new Promise((resolve, reject) => {
+            req.session.save((err) => {
+                if (err) {
+                    console.error('Session save error during signin:', err);
+                    reject(err);
+                } else {
+                    console.log('Session saved successfully during signin');
+                    resolve();
+                }
+            });
         });
-    });
-    return res.status(201).send({ user, accessToken, refreshToken });
+
+        // Set the refreshToken as an httpOnly cookie
+        res.cookie('refreshToken', refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // Secure in production
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
+            sameSite: 'strict',
+            path: '/',
+        });
+
+        // Send the access token and user data in response
+        return res.status(201).send({ user, accessToken });
+
+    } catch (error) {
+        console.error("Sign in error:", error);
+        next(error);
+    }
 });
+
 
 //logout Methode
 export const logout = asyncHandler(async (req, res, next) => {
+    
     try {
         if (req.session) {
-            req.session.destroy((err) => {
+            
+            req.session.destroy(async (err) => {
                 if (err) {
                     return res.status(500).json({ message: 'Logout failed' });
                 }
-                return res.clearCookie(process.env.SESSION_COOKIE_NAME);
+                // Remove the token from the user's tokens array
+                
+                req.user.tokens = req.user.tokens.filter((token) => {
+                    
+                    return token.token !== req.cookies.refreshToken;
+                });
+
+                await req.user.save();
+                res.clearCookie(process.env.SESSION_COOKIE_NAME);
+                return res.status(200).json({ message: 'LogOut Successful' });
             });
         } else {
             return res.status(400).json({ message: 'No active session' });
@@ -92,7 +124,9 @@ export const logoutAll = asyncHandler(
 
 // Refresh Token Route
 export const refreshToken = asyncHandler(async (req, res, next) => {
-    const { refreshToken } = req.body;
+    // Retrieve the refresh token from the httpOnly cookie
+    const refreshToken = req.cookies.refreshToken;
+
     if (!refreshToken) {
         return next(new Error("Refresh token is required", { cause: 401 }));
     }
@@ -100,6 +134,7 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
     try {
         // Verify the refresh token
         const payload = jwt.verify(refreshToken, process.env.REFRESH_JWT_SECRET);
+
         // Find the user by ID
         const user = await userModel.findById(payload._id);
         if (!user) {
@@ -116,14 +151,24 @@ export const refreshToken = asyncHandler(async (req, res, next) => {
         const newAccessToken = await user.generateAuthToken();
         const newRefreshToken = await user.generateRefreshToken();
 
-        // Replace old refresh token with the new one
+        // Replace old refresh token with the new one in the database
         user.tokens = user.tokens.filter(tokenObj => tokenObj.token !== refreshToken);
         user.tokens.push({ token: newRefreshToken });
 
         await user.save();
 
-        // Send new tokens to the client
-        return res.status(200).send({ accessToken: newAccessToken, refreshToken: newRefreshToken });
+        // Set the new refresh token as an httpOnly cookie
+        res.cookie('refreshToken', newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production', // Set to secure in production
+            maxAge: 24 * 60 * 60 * 1000, // 1 day
+            sameSite: 'strict',
+            path: '/',
+        });
+
+        // Send new access token to the client in response
+        return res.status(200).send({ accessToken: newAccessToken });
+
     } catch (error) {
         return next(new Error("Invalid refresh token", { cause: 401 }));
     }
