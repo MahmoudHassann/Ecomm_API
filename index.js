@@ -11,7 +11,7 @@ const BaseURL = process.env.BASE_URL
 const app = express();
 app.use(cookieParser());
 app.use(cors({
-  origin: 'https://bakery-e-comm.vercel.app/', // Frontend domain
+  origin: 'https://bakery-e-comm.vercel.app', // Frontend domain
   credentials: true,  // Allow credentials (cookies)
 }));
 
