@@ -194,10 +194,11 @@ export const getItems = asyncHandler(async (req, res, next) => {
     },
   ]
   const { skip, limit } = paginate({ page: req.query.page, size: req.query.size })
+  const totalCount = await itemModel.countDocuments();
   const item = await itemModel.find().populate(populate).limit(limit).skip(skip)
 
   if (item) {
-    return res.status(201).json({ message: 'Done', item });
+    return res.status(201).json({ message: 'Done', item,totalCount });
   }
   else {
     return next(new Error('Fail to find items', { cause: 400 }));
